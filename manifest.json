@@ -1,0 +1,86 @@
+{
+    "display_information": {
+        "name": "slack-chatbot-fn",
+        "description": "Provides Slack Custom Function for AI chatbot, published as bedrock-claude-chat API",
+        "background_color": "#636878"
+    },
+    "features": {
+        "bot_user": {
+            "display_name": "slack-chatbot-fn",
+            "always_online": false
+        }
+    },
+    "oauth_config": {
+        "scopes": {
+            "bot": [
+                "app_mentions:read",
+                "channels:history",
+                "groups:history",
+                "chat:write"
+            ]
+        }
+    },
+    "settings": {
+        "event_subscriptions": {
+            "request_url": "https://xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.lambda-url.ap-northeast-1.on.aws/",
+            "bot_events": [
+                "app_mention",
+                "function_executed"
+            ]
+        },
+        "org_deploy_enabled": true,
+        "socket_mode_enabled": false,
+        "token_rotation_enabled": false,
+        "hermes_app_type": "remote",
+        "function_runtime": "remote"
+    },
+    "functions": {
+        "bot_invoke": {
+            "title": "Invoke ChatBot",
+            "description": "",
+            "input_parameters": {
+                "api_endpoint": {
+                    "type": "string",
+                    "title": "Bot API Endpoint",
+                    "description": "The URL of the chatbot published API to invoke",
+                    "is_required": true,
+                    "name": "api_endpoint"
+                },
+                "api_key": {
+                    "type": "string",
+                    "title": "Bot API Key",
+                    "description": "",
+                    "is_required": true,
+                    "hint": "The API Key of the chatbot published API to invoke",
+                    "name": "api_key"
+                },
+                "model": {
+                    "type": "string",
+                    "title": "Model",
+                    "description": "The model to use for the chatbot",
+                    "name": "model"
+                },
+                "message_url": {
+                    "type": "string",
+                    "title": "Slack Message URL",
+                    "description": "The URL of the slack message, can be used as a part of propmt",
+                    "is_required": true,
+                    "name": "message_url"
+                },
+                "prompt_text": {
+                    "type": "string",
+                    "title": "Prompt Text",
+                    "description": "The prompt message to send to the chatbot. The message is mustache template, {{ message }} is available.",
+                    "name": "prompt_text"
+                },
+                "preamble": {
+                    "type": "string",
+                    "title": "Preamble",
+                    "description": "Preamble text shown before ChatBot reply",
+                    "name": "preamble"
+                }
+            },
+            "output_parameters": {}
+        }
+    }
+}
