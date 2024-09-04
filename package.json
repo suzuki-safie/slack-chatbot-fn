@@ -1,5 +1,11 @@
 {
-  "name": "cdk",
+  "name": "slack-chatbot-fn",
+  "author": {
+    "name": "Atsushi Suzuki",
+    "email": "a-suzuki@safie.jp"
+  },
+  "description": "A Slack App for providing Custom Function for bedrock-claude-chat published API",
+  "license": "ISC",
   "version": "0.1.0",
   "bin": {
     "cdk": "bin/cdk.js"

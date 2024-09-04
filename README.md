@@ -1,14 +1,34 @@
-# Welcome to your CDK TypeScript project
+# slack-chatbot-fn
 
-This is a blank project for CDK development with TypeScript.
+slack-chatbot-fn is a Slack app that acts as Slack Workflow Custom Function to interact with [bedrock-claude-chat](https://github.com/aws-samples/bedrock-claude-chat) published API. slack-chatbot-fn consists of several AWS Lambda function and CDK stack to deploy them.
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+## Architecture
+```mermaid
+flowchart LR
+  slack[Slack]
+  chat[bedrock-claude-chat]
+  subgraph AWS Account
+    app[Slack App<br>Lambda with Function URL]
+    handler[Bot Handler<br>Lambda]
+  end
 
-## Useful commands
+  slack -- 1) Event to<br>Request URL --> app
+  app -- 2) Invoke --> handler
+  handler -- 3) Conversation --> chat
+  chat -- 4) Reply --> handler
+  handler -- 5) Reply --> slack
+```
 
-* `npm run build`   compile typescript to js
-* `npm run watch`   watch for changes and compile
-* `npm run test`    perform the jest unit tests
-* `npx cdk deploy`  deploy this stack to your default AWS account/region
-* `npx cdk diff`    compare deployed stack with current state
-* `npx cdk synth`   emits the synthesized CloudFormation template
+## Usage
+1. copy `.env.example` to `.env`
+2. `source .env && npx cdk deploy` to deploy the stack.
+   Note the `LambdaFunctionURL` and `ElasticIP` from the output.
+   NOTE: at this point app is not properly configured yet.
+3. On bedrock-claude-chat, allow API access from `ElasticIP` noted above.
+4. On bedrock-claude-chat, create a default chatbot and fill `DEFAULT_API_ENDPOINT` and `DEFAULT_API_KEY` in `.env`
+5. On Slack, create and install a new app with `manifest.json` and fill `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`.
+   NOTE: `settings.event_subscription.request_url` should be `LambdaFunctionURL`
+6. `source .env && npx cdk deploy` to update the stack.
+7. On Slack, add the app to a channel and create new workflow.
+   The workflow should be triggerd with an emoji reaction and execute a custom step `Custom/slack-chatbot-fn/Invoke ChatBot`.
+   Set custom step's `Slack Message URL` to `{} Link to the message that was reacted to`
