@@ -9,16 +9,14 @@ import type { Event } from "./stack.chatbot-handler";
 // Define slack custom function inputs type
 // see manifest.json and https://api.slack.com/automation/functions/custom-bolt#inputs-outputs
 const Inputs = z.object({
-  api_endpoint: z.string().url(),
-  api_key: z.string().min(1),
+  api_endpoint: z.string().url().optional(),
+  api_key: z.string().min(1).optional(),
   message_url: z.string().url(),
   prompt_text: z.string().min(1).optional(),
   model: z.string().min(1).optional(),
   preamble: z.string().min(1).optional(),
 });
 type Inputs = z.infer<typeof Inputs>;
-
-const DEFAULT_PROMPT_TEXT = "<message>\n{{message}}\n</message>\nmessageタグの質問文に対して回答してください。Markdown形式が使用できます。";
 
 // AWS clients
 const lambdaClient = new LambdaClient({});
@@ -39,10 +37,10 @@ app.function("bot_invoke", async ({ inputs, client, complete, fail }) => {
   try {
     // parse Slack custom function inputs
     const {
-      api_endpoint: apiEndpoint,
-      api_key: apiKey,
+      api_endpoint: apiEndpoint = process.env.DEFAULT_API_ENDPOINT!,
+      api_key: apiKey = process.env.DEFAULT_API_KEY!,
       message_url: messageUrl,
-      prompt_text: promptText = DEFAULT_PROMPT_TEXT,
+      prompt_text: promptText = "<message>\n{{message}}\n</message>\nmessageタグの質問文に対して回答してください。Markdown形式が使用できます。",
       model = "claude-v3.5-sonnet",
       preamble,
     } = Inputs.parse(inputs);

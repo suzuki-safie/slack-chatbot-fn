@@ -43,14 +43,12 @@
                     "type": "string",
                     "title": "Bot API Endpoint",
                     "description": "The URL of the chatbot published API to invoke",
-                    "is_required": true,
                     "name": "api_endpoint"
                 },
                 "api_key": {
                     "type": "string",
                     "title": "Bot API Key",
                     "description": "",
-                    "is_required": true,
                     "hint": "The API Key of the chatbot published API to invoke",
                     "name": "api_key"
                 },

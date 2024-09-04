@@ -56,6 +56,8 @@ export class MyStack extends cdk.Stack {
       environment: {
         SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN!,
         SLACK_SIGNING_SECRET: process.env.SLACK_SIGNING_SECRET!,
+        DEFAULT_API_ENDPOINT: process.env.DEFAULT_API_ENDPOINT!,
+        DEFAULT_API_KEY: process.env.DEFAULT_API_KEY!,
         CHATBOT_HANDLER_FUNCTION_NAME: fnChatbotHandler.functionName,
       },
       timeout: cdk.Duration.seconds(4),
