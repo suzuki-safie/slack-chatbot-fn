@@ -110,5 +110,14 @@ export class MyStack extends cdk.Stack {
         value: eip.attrPublicIp,
       });
     });
+
+    new cdk.aws_events.Rule(this, "LambdaWeeklyTriggerRule", {
+      schedule: cdk.aws_events.Schedule.cron({
+        minute: "0",
+        hour: "10",
+        weekDay: "SUN,WED",
+      }),
+      targets: [new cdk.aws_events_targets.LambdaFunction(fnChatbotHandler)],
+    });
   }
 }
