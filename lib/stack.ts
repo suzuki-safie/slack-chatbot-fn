@@ -61,12 +61,6 @@ export class MyStack extends cdk.Stack {
         CHATBOT_HANDLER_FUNCTION_NAME: fnChatbotHandler.functionName,
       },
       timeout: cdk.Duration.seconds(4),
-      vpc,
-      securityGroups: [sg],
-      vpcSubnets: vpc.selectSubnets({
-        subnetType: ec2.SubnetType.PUBLIC,
-      }),
-      allowPublicSubnet: true,
     });
 
     const fnUrl = fnSlackApp.addFunctionUrl({
