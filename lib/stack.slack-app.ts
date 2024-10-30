@@ -47,22 +47,41 @@ app.function("bot_invoke", async ({ inputs, client, complete, fail }) => {
     console.log("Starting bot_invoke function", { apiEndpoint, apiKey: "*".repeat(apiKey.length), messageUrl, promptText, model, preamble });
 
     // retrieve message text from message_url
-    const m = messageUrl?.match(/\/archives\/(\w+)\/p(\d+)$/);
+    const url = new URL(messageUrl);
+    const m = url.pathname.match(/\/archives\/(\w+)\/p(\d+)/);
     if (!m) {
       throw new Error("Invalid message_url format");
     }
     const channel = m[1];
     const ts = m[2].slice(0, -6) + "." + m[2].slice(-6);
-    const res = await client.conversations.history({
-      channel,
-      oldest: ts,
-      inclusive: true,
-      limit: 1,
-    });
-    if (!res.messages || res.messages.length === 0) {
-      throw new Error("Message specified by message_url not found");
+    const threadTs = url.searchParams.get("thread_ts");
+    let messageText: string;
+    if (!threadTs) {
+      // message_url is a message
+      const res = await client.conversations.history({
+        channel,
+        latest: ts,
+        limit: 1,
+        inclusive: true,
+      });
+      if (!res.messages || res.messages.length === 0) {
+        throw new Error("Message specified by message_url not found");
+      }
+      messageText = res.messages[0].text ?? "";
+    } else {
+      // message_url is a reply
+      const res = await client.conversations.replies({
+        channel,
+        ts: threadTs,
+        latest: ts,
+        limit: 1,
+        inclusive: true,
+      });
+      if (!res.messages || res.messages.length === 0) {
+        throw new Error("Reply specified by message_url not found");
+      }
+      messageText = res.messages[res.messages.length - 1].text ?? "";
     }
-    const messageText = res.messages[0].text || "";
 
     // build propmt message from template and slack message
     const prompt = Mustache.render(promptText, { message: messageText });
@@ -85,6 +104,7 @@ app.function("bot_invoke", async ({ inputs, client, complete, fail }) => {
 
     await complete({});
   } catch (error) {
+    console.error("Error: ", error);
     await fail({ error: `Failed to handle a function request: ${error}`, });
   }
 });
