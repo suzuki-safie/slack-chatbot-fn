@@ -39,17 +39,19 @@ flowchart LR
 - `model`: LLM model name to use. default: `claude-v3.5-sonnet`. see https://aws-samples.github.io/bedrock-claude-chat/#tag/published_api/operation/post_message_conversation_post
 - `message_url`: Slack message url, like `https://team.slack.com/archives/C00000000000/p0000000000000000` or `https://team.slack.com/archives/C00000000000/p0000000000000000?thread_ts=0000000000.000000`
 - `prompt_text`: Prompt text to input to LLM model. Text is [mustache](https://github.com/janl/mustache.js) template with following variables.
-   - `text`: Text content of the message specified with `message_url`
-   - `user`: User ID of the message specified with `message_url`
-   - `ts`: Message timestamp in Slack format. i.e. `0000000000.000000`
-   - `timestamp`: Message timestamp in RFC3339 format
-   - `thread`: List of messages object in the thread which the message specified with `message_url` belongs to. available if `fetch_thread_limit` is set to >0.
-     - `ts`: Reply timestamp in Slack format
-     - `timestamp`: Reply timestamp in RFC3339 format
-     - `user`: User ID of the reply
-     - `text`: Text content of the reply
-- `preamble`: Output preamble of reply wrote to `message_url`
+  - `url`: Slack message URL, provided with `message_url`
+  - `text`: Text content of the message specified with `message_url`
+  - `user`: User ID of the message specified with `message_url`
+  - `ts`: Message timestamp in Slack format. i.e. `0000000000.000000`
+  - `timestamp`: Message timestamp in RFC3339 format
+  - `thread`: List of messages object in the thread which the message specified with `message_url` belongs to. available if `fetch_thread_limit` is set to >0.
+    - `ts`: Reply timestamp in Slack format
+    - `timestamp`: Reply timestamp in RFC3339 format
+    - `user`: User ID of the reply
+    - `text`: Text content of the reply
+- `preamble`: Output preamble of reply wrote to `message_url`. mustache template.
 - `fetch_thread_limit`: Number of messages to fetch in the thread. default: `0`
+- `reply_to`: Reply output message to. Slack message URL or user ID (i.e. `U123ABC456`, without `@<>`). default: `message_url`
 
 ## Example prompts
 ### Answer to a message

@@ -1,8 +1,9 @@
 import "source-map-support/register";
+import { KnownBlock, WebClient } from "@slack/web-api";
 import { Handler } from 'aws-lambda';
-import { z } from "zod";
 import ky from "ky";
-import { WebClient, KnownBlock } from "@slack/web-api";
+import { z } from "zod";
+import { parseMessageURL } from "./slack";
 
 
 // bedrock-claude-chat published API types
@@ -60,13 +61,12 @@ const Event = z.object({
   apiKey: z.string().min(1),
   prompt: z.string().min(1),
   model: z.string().min(1),
-  channel: z.string().min(1),
-  threadTs: z.string().min(1),
   parseMarkdown: z.boolean().optional(),
   preamble: z.union([
     z.string(),
     z.array(z.object({type: z.string()}) as any as z.ZodType<KnownBlock>),
   ]).optional(),
+  replyTo: z.string().url().or(z.string().regex(/^[UW]\S+$/)),
 });
 export type Event = z.infer<typeof Event>;
 
@@ -78,12 +78,11 @@ export const handler: Handler<Event> = async (event, context) => {
     apiKey,
     prompt,
     model,
-    channel,
-    threadTs,
     parseMarkdown = true,
     preamble,
+    replyTo,
   } = Event.parse(event);
-  console.log("Starting chatbot-handler", {apiEndpoint, apiKey: "*".repeat(apiKey.length), prompt, model, channel, threadTs, parseMarkdown, preamble});
+  console.log("Starting chatbot-handler", {apiEndpoint, apiKey: "*".repeat(apiKey.length), prompt, model, parseMarkdown, preamble});
 
   // create Bot API client
   const api = ky.create({
@@ -138,9 +137,17 @@ export const handler: Handler<Event> = async (event, context) => {
       preambleBlocks = preamble as any;
     }
 
+    let replyParams: { channel: string, thread_ts?: string };
+    if (/^[UW]\S+/.test(replyTo)) {
+      const res = await slackClient.conversations.open({users: replyTo});
+      replyParams = {channel: res.channel!.id!};
+    } else {
+      const { channel, ts, threadTs } = parseMessageURL(replyTo);
+      replyParams = {channel, thread_ts: threadTs ?? ts};
+    }
+
     await slackClient.chat.postMessage({
-      channel: channel,
-      thread_ts: threadTs,
+      ...replyParams,
       blocks: [
         ...preambleBlocks,
         {"type": "section", "text": {"type": parseMarkdown ? "mrkdwn": "plain_text", "text": replyText}},

@@ -1,11 +1,12 @@
 import "source-map-support/register";
-import { App, AwsLambdaReceiver } from "@slack/bolt";
-import { z } from "zod";
-import { Handler } from "aws-lambda";
-const Mustache = require("mustache");
 import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
-import type { Event } from "./stack.chatbot-handler";
+import { App, AwsLambdaReceiver } from "@slack/bolt";
 import { MessageElement } from "@slack/web-api/dist/types/response/ConversationsHistoryResponse";
+import { Handler } from "aws-lambda";
+import { z } from "zod";
+import { parseMessageURL } from "./slack";
+import type { Event } from "./stack.chatbot-handler";
+const Mustache = require("mustache");
 
 // Define slack custom function inputs type
 // see manifest.json and https://api.slack.com/automation/functions/custom-bolt#inputs-outputs
@@ -17,6 +18,7 @@ const Inputs = z.object({
   model: z.string().min(1).optional(),
   preamble: z.string().min(1).optional(),
   fetch_thread_limit: z.number().int().nonnegative().lte(1000).default(0),
+  reply_to: z.string().url().or(z.string().regex(/^[UW]\S+$/)).optional(),
 });
 type Inputs = z.infer<typeof Inputs>;
 
@@ -44,23 +46,17 @@ app.function("bot_invoke", async ({ inputs, client, complete, fail }) => {
       message_url: messageUrl,
       prompt_text: promptText = "<message>\n{{message}}\n</message>\nmessageタグの質問文に対して回答してください。Markdown形式が使用できます。",
       model = "claude-v3.5-sonnet",
-      preamble,
+      preamble: preambleText,
       fetch_thread_limit,
+      reply_to: replyTo = messageUrl,
     } = Inputs.parse(inputs);
-    console.log("Starting bot_invoke function", { apiEndpoint, apiKey: "*".repeat(apiKey.length), messageUrl, promptText, model, preamble, fetch_thread_limit });
+    console.log("Starting bot_invoke function", { apiEndpoint, apiKey: "*".repeat(apiKey.length), messageUrl, promptText, model, preambleText, fetch_thread_limit, replyTo });
 
     // parse message_url
-    const url = new URL(messageUrl);
-    const m = url.pathname.match(/\/archives\/(\w+)\/p(\d+)/);
-    if (!m) {
-      throw new Error("Invalid message_url format");
-    }
-    const channel = m[1];
-    const ts = m[2].slice(0, -6) + "." + m[2].slice(-6);
-    const threadTs = url.searchParams.get("thread_ts");
+    const { channel, ts, threadTs } = parseMessageURL(messageUrl);
 
     // fetch thread messages
-    let message: MessageElement|null = null;
+    let message: MessageElement | null = null;
     const thread: MessageElement[] = [];
     if (fetch_thread_limit > 0 || !threadTs) {
       const res = await client.conversations.replies({
@@ -94,7 +90,7 @@ app.function("bot_invoke", async ({ inputs, client, complete, fail }) => {
     }
 
     // build propmt message from template and slack message
-    const prompt = Mustache.render(promptText, {
+    const templateContext = {
       url: messageUrl,
       ts,
       timestamp: new Date(parseFloat(ts)).toISOString(),
@@ -109,7 +105,9 @@ app.function("bot_invoke", async ({ inputs, client, complete, fail }) => {
           text: m.text ?? "",
         };
       }),
-    });
+    };
+    const prompt = Mustache.render(promptText, templateContext);
+    const preamble = (preambleText) ? Mustache.render(preambleText, templateContext) : undefined;
 
     await lambdaClient.send(new InvokeCommand({
       FunctionName: process.env.CHATBOT_HANDLER_FUNCTION_NAME!,
@@ -119,13 +117,12 @@ app.function("bot_invoke", async ({ inputs, client, complete, fail }) => {
         apiKey,
         prompt,
         model,
-        channel,
-        threadTs: ts,
         parseMarkdown: true,
-        preamble: preamble || undefined,
+        preamble: preamble,
+        replyTo,
       } as Event),
     }));
-    console.log("Invoked chatbot-handler function", {prompt, channel, threadTs: ts});
+    console.log("Invoked chatbot-handler function", { prompt, replyTo });
 
     await complete({});
   } catch (error) {
