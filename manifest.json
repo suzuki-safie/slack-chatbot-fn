@@ -68,7 +68,7 @@
                 "prompt_text": {
                     "type": "string",
                     "title": "Prompt Text",
-                    "description": "The prompt message to send to the chatbot. The message is mustache template, {{ message }} is available.",
+                    "description": "The prompt message to send to the chatbot. The message is mustache template, {{ message }}, {{ #thread }} is available. see https://github.com/suzuki-safie/slack-chatbot-fn and https://github.com/janl/mustache.js.",
                     "name": "prompt_text"
                 },
                 "preamble": {
@@ -76,6 +76,12 @@
                     "title": "Preamble",
                     "description": "Preamble text shown before ChatBot reply",
                     "name": "preamble"
+                },
+                "fetch_thread_limit": {
+                    "type": "integer",
+                    "title": "Fetch Thread Limit",
+                    "description": "If provided and >0, fetches the entire thread until it reaches the limit",
+                    "name": "fetch_thread_limit"
                 }
             },
             "output_parameters": {}

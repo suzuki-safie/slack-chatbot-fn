@@ -5,6 +5,7 @@ import { Handler } from "aws-lambda";
 const Mustache = require("mustache");
 import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import type { Event } from "./stack.chatbot-handler";
+import { MessageElement } from "@slack/web-api/dist/types/response/ConversationsHistoryResponse";
 
 // Define slack custom function inputs type
 // see manifest.json and https://api.slack.com/automation/functions/custom-bolt#inputs-outputs
@@ -15,6 +16,7 @@ const Inputs = z.object({
   prompt_text: z.string().min(1).optional(),
   model: z.string().min(1).optional(),
   preamble: z.string().min(1).optional(),
+  fetch_thread_limit: z.number().int().nonnegative().lte(1000).default(0),
 });
 type Inputs = z.infer<typeof Inputs>;
 
@@ -43,10 +45,11 @@ app.function("bot_invoke", async ({ inputs, client, complete, fail }) => {
       prompt_text: promptText = "<message>\n{{message}}\n</message>\nmessageタグの質問文に対して回答してください。Markdown形式が使用できます。",
       model = "claude-v3.5-sonnet",
       preamble,
+      fetch_thread_limit,
     } = Inputs.parse(inputs);
-    console.log("Starting bot_invoke function", { apiEndpoint, apiKey: "*".repeat(apiKey.length), messageUrl, promptText, model, preamble });
+    console.log("Starting bot_invoke function", { apiEndpoint, apiKey: "*".repeat(apiKey.length), messageUrl, promptText, model, preamble, fetch_thread_limit });
 
-    // retrieve message text from message_url
+    // parse message_url
     const url = new URL(messageUrl);
     const m = url.pathname.match(/\/archives\/(\w+)\/p(\d+)/);
     if (!m) {
@@ -55,21 +58,25 @@ app.function("bot_invoke", async ({ inputs, client, complete, fail }) => {
     const channel = m[1];
     const ts = m[2].slice(0, -6) + "." + m[2].slice(-6);
     const threadTs = url.searchParams.get("thread_ts");
-    let messageText: string;
-    if (!threadTs) {
-      // message_url is a message
-      const res = await client.conversations.history({
+
+    // fetch thread messages
+    let message: MessageElement|null = null;
+    const thread: MessageElement[] = [];
+    if (fetch_thread_limit > 0 || !threadTs) {
+      const res = await client.conversations.replies({
         channel,
-        latest: ts,
-        limit: 1,
-        inclusive: true,
+        ts: threadTs ?? ts,
+        limit: fetch_thread_limit || 1,
       });
-      if (!res.messages || res.messages.length === 0) {
-        throw new Error("Message specified by message_url not found");
+      for (const m of (res.messages ?? [])) {
+        thread.push(m);
+        if (m.ts === ts) {
+          message = m;
+        }
       }
-      messageText = res.messages[0].text ?? "";
-    } else {
-      // message_url is a reply
+    }
+    // if message is not in fetched thread, fetch the message directly
+    if (!message && threadTs) {
       const res = await client.conversations.replies({
         channel,
         ts: threadTs,
@@ -77,14 +84,32 @@ app.function("bot_invoke", async ({ inputs, client, complete, fail }) => {
         limit: 1,
         inclusive: true,
       });
-      if (!res.messages || res.messages.length === 0) {
-        throw new Error("Reply specified by message_url not found");
+      if (res.messages && res.messages.length > 0) {
+        message = res.messages[res.messages.length - 1];
+        thread.push(message);
       }
-      messageText = res.messages[res.messages.length - 1].text ?? "";
+    }
+    if (!message) {
+      throw new Error("Failed to fetch message specified by message_url");
     }
 
     // build propmt message from template and slack message
-    const prompt = Mustache.render(promptText, { message: messageText });
+    const prompt = Mustache.render(promptText, {
+      url: messageUrl,
+      ts,
+      timestamp: new Date(parseFloat(ts)).toISOString(),
+      user: message.user ?? "",
+      message: message.text ?? "",
+      text: message.text ?? "",
+      thread: thread.map(m => {
+        return {
+          ts: m.ts,
+          timestamp: (m.ts) ? new Date(parseFloat(m.ts)).toISOString() : m.ts,
+          user: m.user ?? "",
+          text: m.text ?? "",
+        };
+      }),
+    });
 
     await lambdaClient.send(new InvokeCommand({
       FunctionName: process.env.CHATBOT_HANDLER_FUNCTION_NAME!,
