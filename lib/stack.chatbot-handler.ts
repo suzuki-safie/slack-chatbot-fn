@@ -1,9 +1,11 @@
 import "source-map-support/register";
 import { KnownBlock, WebClient } from "@slack/web-api";
+import { MessageElement } from "@slack/web-api/dist/types/response/ConversationsHistoryResponse";
 import { Handler } from 'aws-lambda';
 import ky from "ky";
 import { z } from "zod";
 import { parseMessageURL } from "./slack";
+const Mustache = require("mustache");
 
 
 // bedrock-claude-chat published API types
@@ -59,13 +61,11 @@ const slackClient = new WebClient(process.env.SLACK_BOT_TOKEN);
 const Event = z.object({
   apiEndpoint: z.string().url(),
   apiKey: z.string().min(1),
-  prompt: z.string().min(1),
+  messageUrl: z.string().url(),
+  promptText: z.string().min(1),
   model: z.string().min(1),
-  parseMarkdown: z.boolean().optional(),
-  preamble: z.union([
-    z.string(),
-    z.array(z.object({type: z.string()}) as any as z.ZodType<KnownBlock>),
-  ]).optional(),
+  preambleText: z.string().min(1).optional(),
+  fetchThreadLimit: z.number().int().nonnegative().lte(1000),
   replyTo: z.string().url().or(z.string().regex(/^[UW]\S+$/)),
 });
 export type Event = z.infer<typeof Event>;
@@ -76,13 +76,90 @@ export const handler: Handler<Event> = async (event, context) => {
   const {
     apiEndpoint,
     apiKey,
-    prompt,
+    messageUrl,
+    promptText,
     model,
-    parseMarkdown = true,
-    preamble,
+    preambleText,
+    fetchThreadLimit,
     replyTo,
   } = Event.parse(event);
-  console.log("Starting chatbot-handler", {apiEndpoint, apiKey: "*".repeat(apiKey.length), prompt, model, parseMarkdown, preamble});
+  console.log("Starting chatbot-handler", {
+    apiEndpoint,
+    apiKey: "*".repeat(apiKey.length),
+    messageUrl,
+    promptText,
+    model,
+    preambleText,
+    fetchThreadLimit,
+    replyTo,
+  });
+
+  // parse message_url
+  const { channel, ts, threadTs } = parseMessageURL(messageUrl);
+
+  const [[message, thread], users] = await Promise.all([
+    (async () => {
+      // fetch thread messages
+      let message: MessageElement | null = null;
+      const thread: MessageElement[] = [];
+      if (fetchThreadLimit > 0 || !threadTs) {
+        const res = await slackClient.conversations.replies({
+          channel,
+          ts: threadTs ?? ts,
+          limit: fetchThreadLimit || 1,
+        });
+        for (const m of (res.messages ?? [])) {
+          thread.push(m);
+          if (m.ts === ts) {
+            message = m;
+          }
+        }
+      }
+      // if message is not in fetched thread, fetch the message directly
+      if (!message && threadTs) {
+        const res = await slackClient.conversations.replies({
+          channel,
+          ts: threadTs,
+          latest: ts,
+          limit: 1,
+          inclusive: true,
+        });
+        if (res.messages && res.messages.length > 0) {
+          message = res.messages[res.messages.length - 1];
+          thread.push(message);
+        }
+      }
+      if (!message) {
+        throw new Error("Failed to fetch message specified by message_url");
+      }
+      return [message, thread];
+    })(),
+    (async () => {
+      // fetch all users
+      const res = await slackClient.users.list({});
+      return new Map(res.members!.map(m => [m.id!, m.name!]));
+    })(),
+  ])
+
+  // build propmt message from template and slack message
+  const templateContext = {
+    url: messageUrl,
+    ts,
+    timestamp: new Date(parseFloat(ts) * 1000).toISOString(),
+    user: message.user ? (users.get(message.user) ?? message.user) : "",
+    message: message.text ?? "",
+    text: message.text ?? "",
+    thread: thread.map(m => {
+      return {
+        ts: m.ts,
+        timestamp: (m.ts) ? new Date(parseFloat(m.ts) * 1000).toISOString() : "",
+        user: m.user ? (users.get(m.user) ?? m.user) : "",
+        text: m.text ?? "",
+      };
+    }),
+  };
+  const prompt = Mustache.render(promptText, templateContext);
+  const preamble = (preambleText) ? Mustache.render(preambleText, templateContext) : undefined;
 
   // create Bot API client
   const api = ky.create({
@@ -90,6 +167,7 @@ export const handler: Handler<Event> = async (event, context) => {
     headers: { "x-api-key": apiKey },
     timeout: 20000,
   });
+  console.log("prompt: ", prompt.slice(0, 1000));
 
   // チャットボットにメッセージを送信
   const { conversationId, messageId } = PostMessageResponse.parse(await api.post("conversation", {
@@ -128,11 +206,11 @@ export const handler: Handler<Event> = async (event, context) => {
 
     // チャットボットが応答した場合、応答メッセージを返す
     const replyText = conversation.messageMap[promptMessage.children[0]].content.find(c => c.contentType === "text")?.body || "";
-    console.log("Received reply from bedrock-claude-chat API", {replyText: (replyText.length > 100) ? replyText.slice(0, 100) + "..." : replyText});
+    console.log("Received reply from bedrock-claude-chat API", {replyText: (replyText.length > 1000) ? replyText.slice(0, 1000) + "..." : replyText});
 
     let preambleBlocks: KnownBlock[] = [];
     if (typeof preamble === "string") {
-      preambleBlocks = [{"type": "section", "text": {"type": "plain_text", "text": preamble}}];
+      preambleBlocks = [{"type": "section", "text": {"type": "mrkdwn", "text": preamble}}];
     } else if (Array.isArray(preamble)) {
       preambleBlocks = preamble as any;
     }
@@ -150,7 +228,7 @@ export const handler: Handler<Event> = async (event, context) => {
       ...replyParams,
       blocks: [
         ...preambleBlocks,
-        {"type": "section", "text": {"type": parseMarkdown ? "mrkdwn": "plain_text", "text": replyText}},
+        {"type": "section", "text": {"type": "mrkdwn", "text": replyText}},
       ],
     });
     console.log("Posted reply to Slack");
