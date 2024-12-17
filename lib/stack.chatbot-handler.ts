@@ -6,6 +6,7 @@ import ky from "ky";
 import { z } from "zod";
 import { parseMessageURL } from "./slack";
 const Mustache = require("mustache");
+const slackifyMarkdown = require("slackify-markdown");
 
 
 // bedrock-claude-chat published API types
@@ -210,7 +211,7 @@ export const handler: Handler<Event> = async (event, context) => {
 
     let preambleBlocks: KnownBlock[] = [];
     if (typeof preamble === "string") {
-      preambleBlocks = [{"type": "section", "text": {"type": "mrkdwn", "text": preamble}}];
+      preambleBlocks = [{"type": "section", "text": {"type": "mrkdwn", "text": slackifyMarkdown(preamble)}}];
     } else if (Array.isArray(preamble)) {
       preambleBlocks = preamble as any;
     }
@@ -228,7 +229,7 @@ export const handler: Handler<Event> = async (event, context) => {
       ...replyParams,
       blocks: [
         ...preambleBlocks,
-        {"type": "section", "text": {"type": "mrkdwn", "text": replyText}},
+        {"type": "section", "text": {"type": "mrkdwn", "text": slackifyMarkdown(replyText)}},
       ],
     });
     console.log("Posted reply to Slack");
