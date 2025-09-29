@@ -30,7 +30,7 @@ export class MyStack extends cdk.Stack {
     });
 
     const fnChatbotHandler = new nodejs.NodejsFunction(this, "chatbot-handler", {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       bundling: {
         sourceMap: true,
         sourceMapMode: nodejs.SourceMapMode.INLINE,
@@ -48,7 +48,7 @@ export class MyStack extends cdk.Stack {
     });
 
     const fnSlackApp = new nodejs.NodejsFunction(this, "slack-app", {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       bundling: {
         sourceMap: true,
         sourceMapMode: nodejs.SourceMapMode.INLINE,
