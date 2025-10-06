@@ -17,21 +17,21 @@
     "cdk": "cdk"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.145",
+    "@types/aws-lambda": "^8.10.155",
     "@types/jest": "^30.0.0",
     "@types/mustache": "^4.2.5",
-    "@types/node": "^24.5.2",
-    "aws-cdk": "^2.1029.3",
+    "@types/node": "^24.6.2",
+    "aws-cdk": "^2.1029.4",
     "jest": "^30.2.0",
     "ts-jest": "^29.1.5",
     "ts-node": "^10.9.2",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.3"
   },
   "dependencies": {
-    "@aws-sdk/client-lambda": "^3.637.0",
+    "@aws-sdk/client-lambda": "^3.901.0",
     "@slack/bolt": "^4.4.0",
     "@slack/web-api": "^7.3.4",
-    "aws-cdk-lib": "^2.217.0",
+    "aws-cdk-lib": "^2.219.0",
     "constructs": "^10.0.0",
     "ky": "^1.7.1",
     "mustache": "^4.2.0",
