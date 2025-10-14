@@ -43,7 +43,7 @@ app.function("bot_invoke", async ({ inputs, client, complete, fail }) => {
       api_key: apiKey = process.env.DEFAULT_API_KEY!,
       message_url: messageUrl,
       prompt_text: promptText = "<message>\n{{message}}\n</message>\nmessageタグの質問文に対して回答してください。Markdown形式が使用できます。",
-      model = "claude-v4.5-sonnet",
+      model = "claude-v3.5-sonnet",
       preamble: preambleText,
       fetch_thread_limit: fetchThreadLimit,
       reply_to: replyTo = messageUrl,
